@@ -18,6 +18,9 @@
         <module>services/recommendation-service</module>
         <module>services/notification-service</module>
         <module>services/bff</module>
+        <module>services/analytics-service</module>
+        <module>services/chat-service</module>
+        <module>services/media-service</module>
     </modules>
 
     <properties>
