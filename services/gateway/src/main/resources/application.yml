@@ -1,0 +1,90 @@
+server:
+  port: 8080
+
+jwt:
+  secret: my-super-secret-key-my-super-secret-key
+
+spring:
+  application:
+    name: gateway
+
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+              - "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            exposedHeaders:
+              - Authorization
+              - Content-Type
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/auth/**
+
+        - id: profile-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/profile/**
+
+        - id: recommendation-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/feed/**
+
+        - id: swipe-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/swipes/**
+
+        - id: match-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/matches/**,/api/chats/**
+
+        - id: notification-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/api/notifications/**
+
+        - id: admin-service
+          uri: http://localhost:8087
+          predicates:
+            - Path=/api/admin/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: dating-gateway
+    description: API Gateway for dating service
+    version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web.reactive: INFO
+    reactor.netty.http.client: INFO
