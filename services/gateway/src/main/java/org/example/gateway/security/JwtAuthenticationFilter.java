@@ -1,11 +1,14 @@
 package org.example.gateway.security;
 
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -14,6 +17,7 @@ import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Component
@@ -24,15 +28,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final PathPatternParser PATTERN_PARSER = new PathPatternParser();
 
-    // -------- OPEN ENDPOINTS --------
     private static final List<PathPattern> OPEN_ENDPOINTS = List.of(
-            PATTERN_PARSER.parse("/api/auth/sign-in"),
-            PATTERN_PARSER.parse("/api/auth/sign-up"),
+            PATTERN_PARSER.parse("/api/auth/register"),
+            PATTERN_PARSER.parse("/api/auth/login"),
             PATTERN_PARSER.parse("/api/auth/refresh"),
             PATTERN_PARSER.parse("/actuator/health")
     );
 
-    // -------- USER ENDPOINTS --------
     private static final List<PathPattern> USER_ENDPOINTS = List.of(
             PATTERN_PARSER.parse("/api/profile/**"),
             PATTERN_PARSER.parse("/api/feed/**"),
@@ -42,7 +44,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             PATTERN_PARSER.parse("/api/notifications/**")
     );
 
-    // -------- ADMIN ENDPOINTS --------
     private static final List<PathPattern> ADMIN_ENDPOINTS = List.of(
             PATTERN_PARSER.parse("/api/admin/**")
     );
@@ -52,12 +53,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getPath().value();
         PathContainer pathContainer = PathContainer.parsePath(path);
 
-        // 1. Открытые endpoint'ы
+        if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())) {
+            return chain.filter(exchange);
+        }
+
         if (matchesAny(pathContainer, OPEN_ENDPOINTS)) {
             return chain.filter(exchange);
         }
 
-        // 2. Authorization header
         String authHeader = exchange.getRequest()
                 .getHeaders()
                 .getFirst(HttpHeaders.AUTHORIZATION);
@@ -68,13 +71,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String token = authHeader.substring(7);
 
-        // 3. JWT validation
-        if (!jwtService.validateToken(token)) {
+        Claims claims;
+        try {
+            claims = jwtService.extractClaims(token);
+        } catch (Exception e) {
             return unauthorized(exchange, "Invalid or expired token");
         }
 
-        String login = jwtService.getLoginFromToken(token);
-        String role = jwtService.getRoleFromToken(token);
+        String login = claims.getSubject();
+        String role = claims.get("role", String.class);
 
         if (login == null || login.isBlank()) {
             return unauthorized(exchange, "Login not found in token");
@@ -84,12 +89,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return forbidden(exchange, "Role not found in token");
         }
 
-        // 4. Проверка доступа
         if (!hasAccess(pathContainer, role)) {
             return forbidden(exchange, "Access denied");
         }
 
-        // 5. Прокидываем данные пользователя дальше в сервисы
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
                 .header("X-User-Login", login)
@@ -101,7 +104,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private boolean hasAccess(PathContainer path, String role) {
         if ("ROLE_ADMIN".equals(role)) {
-            // админ может ходить и в админские, и в пользовательские ручки
             return matchesAny(path, ADMIN_ENDPOINTS) || matchesAny(path, USER_ENDPOINTS);
         }
 
@@ -118,20 +120,22 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        exchange.getResponse().getHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json");
-        byte[] bytes = ("{\"error\":\"" + escapeJson(message) + "\"}").getBytes();
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
-                .bufferFactory()
-                .wrap(bytes)));
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        byte[] bytes = ("{\"error\":\"" + escapeJson(message) + "\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        return exchange.getResponse().writeWith(
+                Mono.just(exchange.getResponse().bufferFactory().wrap(bytes))
+        );
     }
 
     private Mono<Void> forbidden(ServerWebExchange exchange, String message) {
         exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
-        exchange.getResponse().getHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json");
-        byte[] bytes = ("{\"error\":\"" + escapeJson(message) + "\"}").getBytes();
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
-                .bufferFactory()
-                .wrap(bytes)));
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        byte[] bytes = ("{\"error\":\"" + escapeJson(message) + "\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        return exchange.getResponse().writeWith(
+                Mono.just(exchange.getResponse().bufferFactory().wrap(bytes))
+        );
     }
 
     private String escapeJson(String value) {

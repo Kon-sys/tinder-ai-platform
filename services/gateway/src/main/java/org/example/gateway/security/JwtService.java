@@ -1,12 +1,17 @@
 package org.example.gateway.security;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Component
@@ -15,35 +20,28 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    public String getLoginFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
+    public Claims extractClaims(String token) {
+        return Jwts.parserBuilder()
                 .setSigningKey(getSignInKey())
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-        return claims.getSubject();
+    }
+
+    public String getLoginFromToken(String token) {
+        return extractClaims(token).getSubject();
     }
 
     public String getRoleFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getSignInKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-        return claims.get("role", String.class);
+        return extractClaims(token).get("role", String.class);
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(getSignInKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+            extractClaims(token);
             return true;
         } catch (ExpiredJwtException e) {
-            log.error("Expired JwtException");
-            return false;
+            log.error("Expired JwtException", e);
         } catch (UnsupportedJwtException e) {
             log.error("Unsupported JwtException", e);
         } catch (MalformedJwtException e) {
@@ -56,8 +54,7 @@ public class JwtService {
         return false;
     }
 
-    private Key getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private SecretKey getSignInKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 }

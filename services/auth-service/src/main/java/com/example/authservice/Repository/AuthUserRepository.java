@@ -1,17 +1,14 @@
 package com.example.authservice.Repository;
 
-
 import com.example.authservice.Model.AuthUser;
-import com.example.authservice.Model.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
+    Optional<AuthUser> findByLogin(String login);
 
-    Optional<RefreshToken> findByToken(String token);
-
-    void deleteAllByUser(AuthUser user);
+    boolean existsByLogin(String login);
 }

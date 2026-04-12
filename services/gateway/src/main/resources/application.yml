@@ -17,6 +17,7 @@ spring:
             allowedOrigins:
               - "http://localhost:3000"
               - "http://localhost:4200"
+              - "http://localhost:5173"
             allowedMethods:
               - GET
               - POST
@@ -31,48 +32,14 @@ spring:
             allowCredentials: true
             maxAge: 3600
 
-      routes:
-        - id: auth-service
-          uri: http://localhost:8081
-          predicates:
-            - Path=/api/auth/**
-
-        - id: profile-service
-          uri: http://localhost:8082
-          predicates:
-            - Path=/api/profile/**
-
-        - id: recommendation-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/api/feed/**
-
-        - id: swipe-service
-          uri: http://localhost:8084
-          predicates:
-            - Path=/api/swipes/**
-
-        - id: match-service
-          uri: http://localhost:8085
-          predicates:
-            - Path=/api/matches/**,/api/chats/**
-
-        - id: notification-service
-          uri: http://localhost:8086
-          predicates:
-            - Path=/api/notifications/**
-
-        - id: admin-service
-          uri: http://localhost:8087
-          predicates:
-            - Path=/api/admin/**
-
 management:
   endpoints:
     web:
       exposure:
         include: health,info,gateway
   endpoint:
+    gateway:
+      access: read-only
     health:
       show-details: always
 
@@ -85,6 +52,7 @@ info:
 logging:
   level:
     root: INFO
-    org.springframework.cloud.gateway: INFO
-    org.springframework.web.reactive: INFO
-    reactor.netty.http.client: INFO
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: TRACE
+    org.springframework.web.reactive: DEBUG
+    reactor.netty.http.client: DEBUG
